@@ -149,6 +149,18 @@
                 </div>
             </div>
 
+            <!-- Reprise de la partie en cours -->
+            <div id="resumeBanner" class="hidden bg-emerald-50 border border-emerald-300 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-md">
+                <div class="text-sm text-emerald-900">
+                    <p class="font-bold flex items-center gap-2"><i class="fa-solid fa-hourglass-half text-emerald-600"></i> Partie en cours</p>
+                    <p class="text-emerald-800/80">Il reste <span id="resumeRemaining">0</span> carte(s) à réviser.</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="discardSavedSession()" class="bg-white hover:bg-pink-100 text-rose-900 text-sm font-semibold px-4 py-2.5 rounded-xl border border-pink-200 transition">Abandonner</button>
+                    <button onclick="resumeSavedSession()" class="bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-md">Reprendre la partie</button>
+                </div>
+            </div>
+
             <!-- Formulaire d'ajout de carte -->
             <div class="bg-pink-50/90 border border-pink-200 rounded-3xl p-6 shadow-lg shadow-pink-200/40">
                 <form id="addCardForm" onsubmit="handleAddCard(event)" class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
@@ -460,8 +472,22 @@
             loadDeckFromLocalStorage();
             requestPersistentStorage();
             renderDeckGrid();
+            // Reprise automatique de la partie en cours (comme Yen4Ever)
+            if (!resumeSavedSession()) refreshResumeBanner();
 
             document.addEventListener('keydown', handleKeyPress);
+            // Sauvegarde de la partie à la fermeture / masquage de l'onglet
+            window.addEventListener('pagehide', saveSession);
+            // Confirmation si l'on quitte pendant une partie
+            window.addEventListener('beforeunload', e => {
+                if (!document.getElementById('gameMode').classList.contains('hidden')) {
+                    e.preventDefault();
+                    e.returnValue = '';
+                }
+            });
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') saveSession();
+            });
         });
 
         const STORAGE_KEY = 'flashcards_lou_deck';
@@ -534,6 +560,7 @@
             if (mode === 'editor') {
                 editor.classList.remove('hidden');
                 renderDeckGrid();
+                refreshResumeBanner();
             } else if (mode === 'game') {
                 game.classList.remove('hidden');
             } else if (mode === 'results') {
@@ -716,6 +743,69 @@
             }
         }
 
+        // --- SAUVEGARDE DE LA PARTIE EN COURS ---
+        const SESSION_KEY = 'flashcards_lou_session';
+
+        function saveSession() {
+            if (!startTime || currentGameCards.length === 0) return;
+            try {
+                localStorage.setItem(SESSION_KEY, JSON.stringify({
+                    cards: currentGameCards,
+                    index: currentCardIndex,
+                    total: totalUniqueCards,
+                    score: scoreSuccess,
+                    reviews: totalReviewsCount,
+                    firstTry: firstTrySuccessCount,
+                    attempts: cardFirstAttemptMap,
+                    elapsedMs: Date.now() - startTime.getTime()
+                }));
+            } catch (e) { /* stockage indisponible */ }
+        }
+
+        function clearSession() {
+            try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
+        }
+
+        function getSavedSession() {
+            try {
+                const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+                if (s && Array.isArray(s.cards) && s.cards.length > 0) return s;
+            } catch (e) { /* session illisible */ }
+            return null;
+        }
+
+        function resumeSavedSession() {
+            const s = getSavedSession();
+            if (!s) return false;
+            currentGameCards = s.cards;
+            totalUniqueCards = s.total || s.cards.length;
+            currentCardIndex = Math.max(0, Math.min(s.index || 0, s.cards.length - 1));
+            scoreSuccess = s.score || 0;
+            totalReviewsCount = s.reviews || 0;
+            firstTrySuccessCount = s.firstTry || 0;
+            cardFirstAttemptMap = s.attempts || {};
+            startTime = new Date(Date.now() - (s.elapsedMs || 0));
+
+            switchMode('game');
+            displayCurrentCard();
+            updateGameUI();
+            return true;
+        }
+
+        function discardSavedSession() {
+            clearSession();
+            refreshResumeBanner();
+            showToast('Partie en cours abandonnée.', 'info');
+        }
+
+        function refreshResumeBanner() {
+            const banner = document.getElementById('resumeBanner');
+            if (!banner) return;
+            const s = getSavedSession();
+            banner.classList.toggle('hidden', !s);
+            if (s) document.getElementById('resumeRemaining').innerText = s.cards.length;
+        }
+
         // --- DÉMARRAGE ET LOGIQUE DU JEU DE CARTES ---
         function startGame() {
             if (deck.length === 0) {
@@ -748,6 +838,7 @@
             switchMode('game');
             displayCurrentCard();
             updateGameUI();
+            saveSession();
         }
 
         function shuffleArray(array) {
@@ -825,6 +916,7 @@
                 }
                 displayCurrentCard();
                 updateGameUI();
+                saveSession();
             }
         }
 
@@ -839,6 +931,7 @@
         }
 
         function endGame() {
+            clearSession();
             const endTime = new Date();
             const elapsedSeconds = Math.max(1, Math.round((endTime - startTime) / 1000));
             const accuracy = Math.round((firstTrySuccessCount / totalUniqueCards) * 100);
