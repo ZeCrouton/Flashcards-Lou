@@ -1,0 +1,17 @@
+{
+  "name": "Flashcards Lou",
+  "short_name": "Flashcards Lou",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fdf2f8",
+  "theme_color": "#f43f5e",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

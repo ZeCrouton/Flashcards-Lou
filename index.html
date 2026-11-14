@@ -70,6 +70,12 @@
             transform: rotateY(180deg);
         }
     </style>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="theme-color" content="#f43f5e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Flashcards Lou">
 </head>
 <body class="bg-gradient-to-br from-pink-100 via-rose-100 to-pink-200 text-rose-950 font-sans min-h-full flex flex-col antialiased selection:bg-pink-300 selection:text-rose-900">
 
@@ -98,7 +104,8 @@
                 </button>
             </div>
         </div>
-    </header>
+    <button id="btnAddHome" type="button" class="hidden ml-2 text-xs font-semibold px-3 py-2 rounded-xl border border-pink-300 bg-white text-rose-900">Ajouter à l'écran d'accueil</button>
+</header>
 
     <!-- Container Principal -->
     <main class="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 md:p-8 flex flex-col justify-center">
@@ -1000,5 +1007,23 @@
             }, 3000);
         }
     </script>
+<script>
+(function(){
+  var btn = document.getElementById('btnAddHome');
+  if (!btn) return;
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(function(){});
+  var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (standalone) return;
+  function show(v){ btn.hidden = !v; btn.classList.toggle('hidden', !v); }
+  var deferred = null;
+  window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferred = e; show(true); });
+  if (/iphone|ipad|ipod/i.test(navigator.userAgent)) show(true);
+  window.addEventListener('appinstalled', function(){ show(false); });
+  btn.addEventListener('click', function(){
+    if (deferred) { deferred.prompt(); deferred.userChoice.then(function(){ deferred = null; show(false); }); }
+    else { btn.textContent = "Sur iPhone : Partager ⬆︎ puis « Sur l'écran d'accueil »"; }
+  });
+})();
+</script>
 </body>
 </html>
